@@ -1,0 +1,55 @@
+# Build directories
+build/
+out/
+bin/
+lib/
+x64/
+x86/
+Debug/
+Release/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+*.cmake
+!CMakeLists.txt
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.sdf
+*.opensdf
+*.db
+*.opendb
+
+# Compiled files
+*.obj
+*.o
+*.exe
+*.dll
+*.lib
+*.pdb
+*.ilk
+*.exp
+
+# Shader compiled outputs
+shaders/*.cso
+shaders/*.hlsl.bin
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
