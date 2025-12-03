@@ -1,0 +1,14 @@
+{
+  "rotationSpeed": 0.015,
+  "scale": 0.6,
+  "rotationXMultiplier": 0.7,
+  "cameraX": 0.0,
+  "cameraY": 1.0,
+  "cameraZ": -4.0,
+  "fov": 0.785398,
+  "autoRotate": true,
+  "clearColorR": 0.05,
+  "clearColorG": 0.05,
+  "clearColorB": 0.1
+}
+

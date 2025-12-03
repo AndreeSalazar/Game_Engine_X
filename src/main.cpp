@@ -11,11 +11,117 @@
 #include <cmath>
 #include <DirectXMath.h>
 #include <string>
+#include <fstream>
+#include <sstream>
 
 using namespace DirectX;
 
 // Forward declarations
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+// Estructura de configuración
+struct CubeConfig {
+    float rotationSpeed = 0.015f;
+    float scale = 0.6f;
+    float rotationXMultiplier = 0.7f;
+    float cameraX = 0.0f;
+    float cameraY = 1.0f;
+    float cameraZ = -4.0f;
+    float fov = XM_PIDIV4;
+    float clearColorR = 0.05f;
+    float clearColorG = 0.05f;
+    float clearColorB = 0.1f;
+    bool autoRotate = true;
+};
+
+// Función simple para leer config.json (parsing básico sin librerías externas)
+bool LoadConfig(CubeConfig& config) {
+    std::ifstream file("config.json");
+    if (!file.is_open()) {
+        return false; // Archivo no existe, usar valores por defecto
+    }
+    
+    std::string line;
+    while (std::getline(file, line)) {
+        // Buscar valores en formato simple: "rotationSpeed": 0.02,
+        if (line.find("\"rotationSpeed\"") != std::string::npos) {
+            size_t colon = line.find(':');
+            if (colon != std::string::npos) {
+                std::string value = line.substr(colon + 1);
+                // Eliminar espacios y comas
+                value.erase(0, value.find_first_not_of(" \t,"));
+                value.erase(value.find_last_not_of(" \t,") + 1);
+                config.rotationSpeed = std::stof(value);
+            }
+        }
+        else if (line.find("\"scale\"") != std::string::npos) {
+            size_t colon = line.find(':');
+            if (colon != std::string::npos) {
+                std::string value = line.substr(colon + 1);
+                value.erase(0, value.find_first_not_of(" \t,"));
+                value.erase(value.find_last_not_of(" \t,") + 1);
+                config.scale = std::stof(value);
+            }
+        }
+        else if (line.find("\"rotationXMultiplier\"") != std::string::npos) {
+            size_t colon = line.find(':');
+            if (colon != std::string::npos) {
+                std::string value = line.substr(colon + 1);
+                value.erase(0, value.find_first_not_of(" \t,"));
+                value.erase(value.find_last_not_of(" \t,") + 1);
+                config.rotationXMultiplier = std::stof(value);
+            }
+        }
+        else if (line.find("\"cameraX\"") != std::string::npos) {
+            size_t colon = line.find(':');
+            if (colon != std::string::npos) {
+                std::string value = line.substr(colon + 1);
+                value.erase(0, value.find_first_not_of(" \t,"));
+                value.erase(value.find_last_not_of(" \t,") + 1);
+                config.cameraX = std::stof(value);
+            }
+        }
+        else if (line.find("\"cameraY\"") != std::string::npos) {
+            size_t colon = line.find(':');
+            if (colon != std::string::npos) {
+                std::string value = line.substr(colon + 1);
+                value.erase(0, value.find_first_not_of(" \t,"));
+                value.erase(value.find_last_not_of(" \t,") + 1);
+                config.cameraY = std::stof(value);
+            }
+        }
+        else if (line.find("\"cameraZ\"") != std::string::npos) {
+            size_t colon = line.find(':');
+            if (colon != std::string::npos) {
+                std::string value = line.substr(colon + 1);
+                value.erase(0, value.find_first_not_of(" \t,"));
+                value.erase(value.find_last_not_of(" \t,") + 1);
+                config.cameraZ = std::stof(value);
+            }
+        }
+        else if (line.find("\"fov\"") != std::string::npos) {
+            size_t colon = line.find(':');
+            if (colon != std::string::npos) {
+                std::string value = line.substr(colon + 1);
+                value.erase(0, value.find_first_not_of(" \t,"));
+                value.erase(value.find_last_not_of(" \t,") + 1);
+                config.fov = std::stof(value);
+            }
+        }
+        else if (line.find("\"autoRotate\"") != std::string::npos) {
+            size_t colon = line.find(':');
+            if (colon != std::string::npos) {
+                std::string value = line.substr(colon + 1);
+                value.erase(0, value.find_first_not_of(" \t,"));
+                value.erase(value.find_last_not_of(" \t,") + 1);
+                config.autoRotate = (value.find("true") != std::string::npos);
+            }
+        }
+    }
+    
+    file.close();
+    return true;
+}
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     // Abrir consola para ver errores
@@ -236,8 +342,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         float rotationAngle = 0.0f;
         UINT width;
         UINT height;
+        CubeConfig config; // Configuración desde C#
     };
-    AppData* appData = new AppData{ d3d12, pso, cubeMesh, mvpBuffer, 0.0f, width, height };
+    
+    // Cargar configuración inicial
+    CubeConfig initialConfig;
+    LoadConfig(initialConfig);
+    
+    AppData* appData = new AppData{ d3d12, pso, cubeMesh, mvpBuffer, 0.0f, width, height, initialConfig };
     SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(appData));
 
     std::cout << "=== Iniciando loop de renderizado ===" << std::endl;
@@ -302,8 +414,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             std::cout << "[DEBUG] Antes de actualizar rotacion..." << std::endl;
             std::cout.flush();
             
-            // Actualizar rotación - más suave y rápida
-            appData->rotationAngle += 0.015f; // Rotación más rápida
+            // Cargar configuración desde C# (cada frame)
+            LoadConfig(appData->config);
+            
+            // Actualizar rotación según configuración
+            if (appData->config.autoRotate) {
+                appData->rotationAngle += appData->config.rotationSpeed;
+            }
             
             std::cout << "[DEBUG] Despues de actualizar rotacion..." << std::endl;
             std::cout.flush();
@@ -311,23 +428,32 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                 appData->rotationAngle -= XM_2PI;
             }
 
-            // Calcular matrices MVP
-            // Model: Rotación en múltiples ejes para efecto más interesante
-            XMMATRIX scale = XMMatrixScaling(0.6f, 0.6f, 0.6f); // Tamaño ligeramente mayor
+            // Calcular matrices MVP usando configuración
+            // Model: Rotación en múltiples ejes usando configuración
+            XMMATRIX scale = XMMatrixScaling(
+                appData->config.scale, 
+                appData->config.scale, 
+                appData->config.scale
+            );
             XMMATRIX rotationY = XMMatrixRotationY(appData->rotationAngle);
-            XMMATRIX rotationX = XMMatrixRotationX(appData->rotationAngle * 0.7f); // Rotación en X más lenta
+            XMMATRIX rotationX = XMMatrixRotationX(appData->rotationAngle * appData->config.rotationXMultiplier);
             XMMATRIX model = scale * rotationX * rotationY; // Combinar rotaciones
             
-            // View: Cámara con ligero ángulo para mejor perspectiva
-            XMVECTOR eye = XMVectorSet(0.0f, 1.0f, -4.0f, 1.0f); // Ligeramente arriba y más atrás
+            // View: Cámara usando configuración desde C#
+            XMVECTOR eye = XMVectorSet(
+                appData->config.cameraX, 
+                appData->config.cameraY, 
+                appData->config.cameraZ, 
+                1.0f
+            );
             XMVECTOR focus = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
             XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
             XMMATRIX view = XMMatrixLookAtLH(eye, focus, up);
             
-            // Projection: Perspectiva con FOV más amplio para ver mejor
+            // Projection: FOV desde configuración
             float aspectRatio = (float)appData->width / (float)appData->height;
             if (aspectRatio <= 0.0f) aspectRatio = 1.0f; // Evitar división por cero
-            XMMATRIX projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, aspectRatio, 0.1f, 100.0f);
+            XMMATRIX projection = XMMatrixPerspectiveFovLH(appData->config.fov, aspectRatio, 0.1f, 100.0f);
 
             // Actualizar constant buffer
             // Transponer y almacenar matrices (DirectX usa matrices en formato row-major)
@@ -414,6 +540,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         float rotationAngle;
         UINT width;
         UINT height;
+        CubeConfig config;
     };
     
     AppData* appData = reinterpret_cast<AppData*>(
