@@ -221,7 +221,11 @@
                     
                     <!-- Host para incrustar DirectX -->
                     <ContentControl x:Name="DirectXHostContainer" 
-                                    Visibility="Collapsed">
+                                    Visibility="Collapsed"
+                                    HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch"
+                                    VerticalContentAlignment="Stretch">
                         <!-- El DirectXHost se agregará desde código -->
                     </ContentControl>
                 </Grid>

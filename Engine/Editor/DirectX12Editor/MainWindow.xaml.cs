@@ -5,6 +5,9 @@ using System.Windows;
 using System.Windows.Controls;
 using Newtonsoft.Json;
 using System.Timers;
+using System.Threading.Tasks;
+using System.Windows.Media;
+using System.Linq;
 
 namespace DirectX12Editor
 {
@@ -59,6 +62,9 @@ namespace DirectX12Editor
             updateTimer.Elapsed += UpdateTimer_Elapsed;
             updateTimer.Start();
             
+            // Detectar cambios de DPI del sistema
+            this.DpiChanged += MainWindow_DpiChanged;
+            
             // Cargar configuración inicial DESPUÉS de que los controles estén inicializados
             // Usar Dispatcher para asegurar que la UI esté lista
             Dispatcher.BeginInvoke(new Action(() =>
@@ -82,6 +88,7 @@ namespace DirectX12Editor
             
             // Manejar cambio de tamaño para actualizar el viewport
             this.SizeChanged += MainWindow_SizeChanged;
+            this.StateChanged += MainWindow_StateChanged!;
         }
 
         private void CheckDirectX12Process()
@@ -479,28 +486,54 @@ namespace DirectX12Editor
                     DirectXHostContainer.Content = directXHost;
                     DirectXHostContainer.Visibility = Visibility.Visible;
                     
-                    // Esperar un momento para que el host se inicialice completamente
-                    // Luego actualizar el tamaño para que se ajuste correctamente
+                    // Configurar el DirectXHost para que ocupe todo el espacio
+                    directXHost.HorizontalAlignment = HorizontalAlignment.Stretch;
+                    directXHost.VerticalAlignment = VerticalAlignment.Stretch;
+                    
+                    // Agregar evento LayoutUpdated para sincronización en tiempo real
+                    DirectXHostContainer.LayoutUpdated += DirectXHostContainer_LayoutUpdated;
+                    
+                    // Actualizar el tamaño inmediatamente después de que el layout se complete
+                    // Esto asegura que el sistema de escalado automático se active desde el inicio
                     Dispatcher.BeginInvoke(new System.Action(() =>
                     {
-                        if (DirectXHostContainer != null && directXHost != null)
-                        {
-                            // Obtener el tamaño actual del contenedor
-                            double width = DirectXHostContainer.ActualWidth;
-                            double height = DirectXHostContainer.ActualHeight;
-                            
-                            // Si el tamaño es válido, actualizar el viewport
-                            if (width > 0 && height > 0)
-                            {
-                                directXHost.UpdateSize((int)width, (int)height);
-                            }
-                            else
-                            {
-                                // Si aún no tiene tamaño, usar un tamaño por defecto razonable
-                                directXHost.UpdateSize(800, 600);
-                            }
-                        }
+                        UpdateDirectXViewportSize();
                     }), System.Windows.Threading.DispatcherPriority.Loaded);
+                    
+                    // También actualizar después de múltiples delays para asegurar que todo esté listo
+                    // y que el sistema de escalado automático se active correctamente
+                    Task.Delay(150).ContinueWith(_ =>
+                    {
+                        Dispatcher.BeginInvoke(new System.Action(() =>
+                        {
+                            UpdateDirectXViewportSize();
+                        }), System.Windows.Threading.DispatcherPriority.Render);
+                    });
+                    
+                    Task.Delay(300).ContinueWith(_ =>
+                    {
+                        Dispatcher.BeginInvoke(new System.Action(() =>
+                        {
+                            UpdateDirectXViewportSize();
+                        }), System.Windows.Threading.DispatcherPriority.Render);
+                    });
+                    
+                    Task.Delay(500).ContinueWith(_ =>
+                    {
+                        Dispatcher.BeginInvoke(new System.Action(() =>
+                        {
+                            UpdateDirectXViewportSize();
+                        }), System.Windows.Threading.DispatcherPriority.Render);
+                    });
+                    
+                    // Una actualización final después de 1 segundo para asegurar que todo esté estable
+                    Task.Delay(1000).ContinueWith(_ =>
+                    {
+                        Dispatcher.BeginInvoke(new System.Action(() =>
+                        {
+                            UpdateDirectXViewportSize();
+                        }), System.Windows.Threading.DispatcherPriority.Background);
+                    });
                     
                     // Ocultar el overlay cuando el host esté listo
                     if (ViewportOverlay != null)
@@ -533,35 +566,257 @@ namespace DirectX12Editor
             }
         }
 
+        private void MainWindow_StateChanged(object sender, EventArgs e)
+        {
+            // Cuando cambia el estado de la ventana (normal, minimizada, maximizada)
+            // actualizar el viewport automáticamente
+            if (this.WindowState != WindowState.Minimized)
+            {
+                // Esperar un poco para que el layout se actualice después de restaurar
+                Task.Delay(100).ContinueWith(_ =>
+                {
+                    Dispatcher.BeginInvoke(new System.Action(() =>
+                    {
+                        UpdateDirectXViewportSize();
+                    }), System.Windows.Threading.DispatcherPriority.Loaded);
+                });
+            }
+        }
+
         private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             // Actualizar tamaño del viewport cuando cambie el tamaño de la ventana
-            if (directXHost != null && DirectXHostContainer != null)
+            // Usar un pequeño delay para asegurar que el layout se haya actualizado
+            Task.Delay(50).ContinueWith(_ =>
             {
-                // Usar Dispatcher para asegurar que el layout se haya actualizado completamente
                 Dispatcher.BeginInvoke(new System.Action(() =>
                 {
+                    UpdateDirectXViewportSize();
+                }), System.Windows.Threading.DispatcherPriority.Loaded);
+            });
+        }
+
+        private void DirectXHostContainer_LayoutUpdated(object? sender, EventArgs e)
+        {
+            // Sincronización en tiempo real cuando cambia el layout
+            // Usar un pequeño delay para evitar actualizaciones excesivas
+            Task.Delay(50).ContinueWith(_ =>
+            {
+                Dispatcher.BeginInvoke(new System.Action(() =>
+                {
+                    UpdateDirectXViewportSize();
+                }), System.Windows.Threading.DispatcherPriority.Loaded);
+            });
+        }
+
+        private void MainWindow_DpiChanged(object sender, DpiChangedEventArgs e)
+        {
+            // Cuando cambia el DPI del sistema, actualizar el viewport automáticamente
+            // Esto asegura que el escalado se ajuste correctamente cuando el usuario cambia
+            // la configuración de DPI del sistema o mueve la ventana entre monitores con diferentes DPI
+            UpdateDirectXViewportSize();
+        }
+
+        private void UpdateDirectXViewportSize()
+        {
+            // No actualizar si la ventana está minimizada
+            if (this.WindowState == WindowState.Minimized)
+            {
+                return;
+            }
+
+            if (directXHost != null && DirectXHostContainer != null)
+            {
+                // Usar Dispatcher con prioridad Loaded para asegurar que el layout se haya actualizado completamente
+                Dispatcher.BeginInvoke(new System.Action(() =>
+                {
+                    // Verificar nuevamente que no esté minimizada después del dispatch
+                    if (this.WindowState == WindowState.Minimized)
+                    {
+                        return;
+                    }
+
                     if (directXHost != null && DirectXHostContainer != null)
                     {
-                        // Verificar que el contenedor tenga un tamaño válido
-                        double width = DirectXHostContainer.ActualWidth;
-                        double height = DirectXHostContainer.ActualHeight;
+                        // Forzar actualización del layout de toda la jerarquía para obtener tamaños precisos
+                        this.UpdateLayout();
+                        DirectXHostContainer.UpdateLayout();
                         
-                        if (width > 0 && height > 0)
+                        // Obtener el tamaño del contenedor de forma más directa y robusta
+                        double width = 0;
+                        double height = 0;
+                        
+                        // Método 1: Obtener directamente del Grid padre (Grid.Row="0")
+                        var parentGrid = DirectXHostContainer.Parent as Grid;
+                        if (parentGrid != null)
                         {
-                            try
+                            parentGrid.UpdateLayout();
+                            
+                            // Usar ActualWidth/ActualHeight primero (más confiable después de UpdateLayout)
+                            width = parentGrid.ActualWidth;
+                            height = parentGrid.ActualHeight;
+                            
+                            // Si no está disponible, usar RenderSize
+                            if (width <= 0 || height <= 0)
                             {
-                                // Actualizar el tamaño del viewport
-                                directXHost.UpdateSize((int)width, (int)height);
+                                width = parentGrid.RenderSize.Width;
+                                height = parentGrid.RenderSize.Height;
                             }
-                            catch (Exception ex)
+                        }
+                        
+                        // Método 2: Si no tenemos tamaño del Grid padre, calcular desde el GroupBox
+                        if (width <= 0 || height <= 0)
+                        {
+                            var groupBox = parentGrid?.Parent as GroupBox;
+                            if (groupBox != null)
                             {
-                                // Log del error pero no detener la aplicación
-                                Debug.WriteLine($"Error actualizando tamaño del viewport: {ex.Message}");
+                                groupBox.UpdateLayout();
+                                
+                                double groupBoxWidth = groupBox.ActualWidth;
+                                double groupBoxHeight = groupBox.ActualHeight;
+                                
+                                // Obtener el Grid que contiene ambos rows
+                                var outerGrid = groupBox.Content as Grid;
+                                if (outerGrid != null)
+                                {
+                                    outerGrid.UpdateLayout();
+                                    
+                                    // Obtener el tamaño del Performance Info (Grid.Row="1")
+                                    var row1Element = outerGrid.Children.Cast<UIElement>()
+                                        .FirstOrDefault(e => Grid.GetRow(e) == 1);
+                                    double performanceInfoHeight = 0;
+                                    if (row1Element != null)
+                                    {
+                                        var frameworkElement = row1Element as FrameworkElement;
+                                        if (frameworkElement != null)
+                                        {
+                                            performanceInfoHeight = frameworkElement.ActualHeight > 0 ? 
+                                                frameworkElement.ActualHeight : 
+                                                (frameworkElement.RenderSize.Height > 0 ? frameworkElement.RenderSize.Height : 50);
+                                        }
+                                        else
+                                        {
+                                            performanceInfoHeight = row1Element.RenderSize.Height > 0 ? row1Element.RenderSize.Height : 50;
+                                        }
+                                    }
+                                    
+                                    // Calcular: GroupBox completo menos header (~25px) y Performance Info
+                                    width = Math.Max(0, groupBoxWidth);
+                                    height = Math.Max(0, groupBoxHeight - 25 - performanceInfoHeight);
+                                    
+                                    // Intentar obtener el tamaño real del Grid.Row="0"
+                                    var row0Element = outerGrid.Children.Cast<UIElement>()
+                                        .FirstOrDefault(e => Grid.GetRow(e) == 0);
+                                    if (row0Element != null)
+                                    {
+                                        var frameworkElement = row0Element as FrameworkElement;
+                                        if (frameworkElement != null)
+                                        {
+                                            double row0Height = frameworkElement.ActualHeight > 0 ? 
+                                                frameworkElement.ActualHeight : 
+                                                (frameworkElement.RenderSize.Height > 0 ? frameworkElement.RenderSize.Height : 0);
+                                            if (row0Height > 0)
+                                            {
+                                                height = row0Height;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            double row0Height = row0Element.RenderSize.Height;
+                                            if (row0Height > 0)
+                                            {
+                                                height = row0Height;
+                                            }
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    // Fallback: usar tamaño completo menos header
+                                    width = Math.Max(0, groupBoxWidth);
+                                    height = Math.Max(0, groupBoxHeight - 25);
+                                }
+                            }
+                        }
+                        
+                        // Método 3: Si aún no tenemos tamaño, usar el ContentControl directamente
+                        if (width <= 0 || height <= 0)
+                        {
+                            DirectXHostContainer.UpdateLayout();
+                            width = DirectXHostContainer.ActualWidth > 0 ? DirectXHostContainer.ActualWidth : DirectXHostContainer.RenderSize.Width;
+                            height = DirectXHostContainer.ActualHeight > 0 ? DirectXHostContainer.ActualHeight : DirectXHostContainer.RenderSize.Height;
+                        }
+                        
+                        // Si aún no tiene tamaño válido, usar el tamaño de la ventana principal
+                        // pero solo si la ventana no está minimizada
+                        if ((width <= 0 || height <= 0) && this.WindowState != WindowState.Minimized)
+                        {
+                            // Usar el tamaño completo disponible de la ventana
+                            width = Math.Max(0, this.ActualWidth);
+                            height = Math.Max(0, this.ActualHeight);
+                        }
+                        
+                        // Asegurar tamaño mínimo válido (pero solo si la ventana no está minimizada)
+                        if (this.WindowState != WindowState.Minimized)
+                        {
+                            if (width <= 0) width = 320;
+                            if (height <= 0) height = 240;
+                            
+                            // Usar TODO el espacio disponible sin restricciones
+                            if (width > 0 && height > 0)
+                            {
+                                try
+                                {
+                                    // Calcular la resolución óptima de renderizado dentro del rango 800x600 a 1920x1080
+                                    RenderResolution renderRes = ViewportAutoScaler.CalculateOptimalRenderResolution(
+                                        width,
+                                        height,
+                                        minWidth: 800,
+                                        minHeight: 600,
+                                        maxWidth: 1920,
+                                        maxHeight: 1080
+                                    );
+                                    
+                                    // El tamaño del viewport usa TODO el espacio disponible
+                                    int viewportWidth = (int)Math.Round(width);
+                                    int viewportHeight = (int)Math.Round(height);
+                                    
+                                    // Asegurar tamaño mínimo válido
+                                    if (viewportWidth < 320) viewportWidth = 320;
+                                    if (viewportHeight < 240) viewportHeight = 240;
+                                    
+                                    // Log para debugging y diagnóstico en tiempo real
+                                    #if DEBUG
+                                    Debug.WriteLine($"[Viewport Update] Viewport: {viewportWidth}x{viewportHeight} | Render: {renderRes} | Disponible: {width:F1}x{height:F1}");
+                                    if (parentGrid != null)
+                                    {
+                                        Debug.WriteLine($"[Viewport Update] ParentGrid: {parentGrid.ActualWidth}x{parentGrid.ActualHeight} | Container: {DirectXHostContainer.ActualWidth}x{DirectXHostContainer.ActualHeight}");
+                                    }
+                                    #endif
+                                    
+                                    // Actualizar el tamaño del viewport - esto activa el escalado automático en C++
+                                    directXHost.UpdateSize(viewportWidth, viewportHeight);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Debug.WriteLine($"Error actualizando viewport: {ex.Message}");
+                                    
+                                    // Fallback: usar tamaño directo
+                                    try
+                                    {
+                                        int finalWidth = Math.Max(320, (int)width);
+                                        int finalHeight = Math.Max(240, (int)height);
+                                        directXHost.UpdateSize(finalWidth, finalHeight);
+                                    }
+                                    catch (Exception fallbackEx)
+                                    {
+                                        Debug.WriteLine($"Error en fallback: {fallbackEx.Message}");
+                                    }
+                                }
                             }
                         }
                     }
-                }), System.Windows.Threading.DispatcherPriority.Background);
+                }), System.Windows.Threading.DispatcherPriority.Loaded);
             }
         }
 

@@ -20,6 +20,7 @@ namespace D3D12Core {
     class D3D12CommandQueue;
     class D3D12SwapChain;
     class D3D12DescriptorHeap;
+    class D3D12HighResRenderTarget;
 
     // Clase principal que gestiona DirectX 12
     class D3D12Core {
@@ -40,6 +41,14 @@ namespace D3D12Core {
         D3D12SwapChain* GetSwapChain() const { return m_swapChain.get(); }
         UINT GetCurrentBackBufferIndex() const { return m_currentBackBufferIndex; }
         UINT GetFrameIndex() const { return m_frameIndex; }
+        
+        // Obtener dimensiones actuales del viewport (tamaño del swap chain)
+        UINT GetWidth() const { return m_width; }
+        UINT GetHeight() const { return m_height; }
+        
+        // Obtener dimensiones de renderizado de alta calidad
+        UINT GetRenderWidth() const { return m_renderWidth; }
+        UINT GetRenderHeight() const { return m_renderHeight; }
 
         // Resize
         void Resize(UINT width, UINT height);
@@ -48,11 +57,14 @@ namespace D3D12Core {
         std::unique_ptr<D3D12Device> m_device;
         std::unique_ptr<D3D12CommandQueue> m_commandQueue;
         std::unique_ptr<D3D12SwapChain> m_swapChain;
+        std::unique_ptr<D3D12HighResRenderTarget> m_highResRenderTarget;
 
         UINT m_currentBackBufferIndex = 0;
         UINT m_frameIndex = 0;
-        UINT m_width = 0;
-        UINT m_height = 0;
+        UINT m_width = 0;  // Tamaño del viewport (puede variar)
+        UINT m_height = 0; // Tamaño del viewport (puede variar)
+        UINT m_renderWidth = 1920;  // Resolución de renderizado fija (alta calidad)
+        UINT m_renderHeight = 1080; // Resolución de renderizado fija (alta calidad)
         HWND m_hwnd = nullptr;
     };
 

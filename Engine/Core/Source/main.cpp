@@ -188,6 +188,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     RegisterClass(&wc);
 
     // Crear ventana
+    // Usar un tamaño razonable por defecto que se ajustará automáticamente después
     UINT width = 1280;
     UINT height = 720;
 
@@ -195,13 +196,25 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (parentHwnd) {
         RECT parentRect;
         if (GetClientRect(parentHwnd, &parentRect)) {
-            width = parentRect.right - parentRect.left;
-            height = parentRect.bottom - parentRect.top;
+            UINT parentWidth = parentRect.right - parentRect.left;
+            UINT parentHeight = parentRect.bottom - parentRect.top;
+            
             // Asegurar tamaño mínimo válido
-            if (width <= 0) width = 800;
-            if (height <= 0) height = 600;
-            std::cout << "Tamaño inicial obtenido del padre: " << width << "x" << height << std::endl;
+            if (parentWidth <= 0) parentWidth = 800;
+            if (parentHeight <= 0) parentHeight = 600;
+            
+            // Usar el tamaño del padre - el sistema de escalado automático lo ajustará después
+            // cuando se reciba el mensaje WM_SIZE desde el editor C#
+            width = parentWidth;
+            height = parentHeight;
+            
+            std::cout << "Tamaño inicial del contenedor padre: " << width << "x" << height << std::endl;
+            std::cout << "El sistema de escalado automático se activará cuando se reciba WM_SIZE" << std::endl;
+        } else {
+            std::cout << "No se pudo obtener el tamaño del padre, usando valores por defecto" << std::endl;
         }
+    } else {
+        std::cout << "Ventana independiente, usando resolución por defecto: " << width << "x" << height << std::endl;
     }
 
     // Si hay un padre, crear como ventana hijo, sino como ventana independiente
@@ -440,10 +453,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // Loop principal
     MSG msg = {};
     bool running = true;
-    int loopIterations = 0;
-    int messageCount = 0;
-
-    std::cout << "Entrando al loop principal..." << std::endl;
+    // Loop principal iniciado silenciosamente para renderizado en tiempo real
     std::cout.flush(); // Forzar flush
 
     // Variables para optimizar carga de configuración
@@ -456,15 +466,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     QueryPerformanceCounter(&lastTime);
     const double targetFrameTime = 1.0 / 60.0; // 60 FPS
     
-    // Contador de frames para debugging
-    static int frameCount = 0;
-    static int lastLogFrame = 0;
-    
-    std::cout << "=== Loop iniciado, renderizando continuamente ===" << std::endl;
-    std::cout << "Presiona ESC en la ventana o cierra la ventana para salir" << std::endl;
+    // Loop iniciado, renderizando continuamente en tiempo real
+    // Sin mensajes repetitivos para mantener la consola limpia y mejor rendimiento
     
     while (running) {
-        frameCount++;
         
         // Procesar mensajes de Windows (NO bloqueante)
         while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
@@ -634,11 +639,40 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                 continue;
             }
             
-            // Establecer viewport y scissor rect PRIMERO (antes de cualquier otro comando)
-            D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)appData->width, (float)appData->height, 0.0f, 1.0f };
-            D3D12_RECT scissorRect = { 0, 0, (LONG)appData->width, (LONG)appData->height };
-            commandList->RSSetViewports(1, &viewport);
-            commandList->RSSetScissorRects(1, &scissorRect);
+            // Actualizar el tamaño del viewport si ha cambiado (resolución automática)
+            // El sistema C# calcula automáticamente el tamaño óptimo del viewport usando ViewportAutoScaler
+            // Esto se hace de forma completamente automática sin necesidad de intervención manual
+            static UINT lastWidth = 0;
+            static UINT lastHeight = 0;
+            if (appData->width != lastWidth || appData->height != lastHeight) {
+                // Solo actualizar si el tamaño es válido (mayor que 0)
+                if (appData->width > 0 && appData->height > 0) {
+                    d3d12->Resize(appData->width, appData->height);
+                    lastWidth = appData->width;
+                    lastHeight = appData->height;
+                    // El sistema funciona automáticamente, no necesita logs constantes
+                }
+            }
+            
+            // Establecer viewport y scissor rect al tamaño COMPLETO del swap chain
+            // El viewport debe llenar TODO el espacio disponible sin bordes vacíos
+            // Usar el tamaño actual del swap chain (que siempre coincide con el espacio disponible)
+            UINT currentWidth = d3d12->GetWidth();
+            UINT currentHeight = d3d12->GetHeight();
+            
+            if (currentWidth > 0 && currentHeight > 0) {
+                // Usar el tamaño completo del swap chain para llenar todo el espacio disponible
+                D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)currentWidth, (float)currentHeight, 0.0f, 1.0f };
+                D3D12_RECT scissorRect = { 0, 0, (LONG)currentWidth, (LONG)currentHeight };
+                commandList->RSSetViewports(1, &viewport);
+                commandList->RSSetScissorRects(1, &scissorRect);
+            } else if (appData->width > 0 && appData->height > 0) {
+                // Fallback: usar appData si el tamaño del swap chain no está disponible
+                D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)appData->width, (float)appData->height, 0.0f, 1.0f };
+                D3D12_RECT scissorRect = { 0, 0, (LONG)appData->width, (LONG)appData->height };
+                commandList->RSSetViewports(1, &viewport);
+                commandList->RSSetScissorRects(1, &scissorRect);
+            }
             
             // Usar Material System si está disponible, sino usar PSO básico
             bool useMaterial = false;
@@ -720,18 +754,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         }
         
         lastTime = currentTime;
-        loopIterations++;
         
-        // Log cada 300 frames (~5 segundos a 60 FPS) para verificar que el loop continúa
-        if (frameCount - lastLogFrame >= 300) {
-            std::cout << "[Loop activo] Frames renderizados: " << frameCount 
-                      << ", Iteraciones: " << loopIterations << std::endl;
-            lastLogFrame = frameCount;
-        }
+        // Renderizado en tiempo real sin mensajes repetitivos
+        // El loop continúa silenciosamente para mejor rendimiento
     }
     
-    std::cout << "Loop terminado. Total frames: " << frameCount 
-              << ", Total iteraciones: " << loopIterations << std::endl;
+    // Loop terminado silenciosamente
 
     std::cout << "=== Limpiando recursos ===" << std::endl;
 
@@ -784,9 +812,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
             UINT width = LOWORD(lParam);
             UINT height = HIWORD(lParam);
             if (width > 0 && height > 0) {
+                // Actualizar tamaño del viewport automáticamente
                 appData->width = width;
                 appData->height = height;
                 d3d12->Resize(width, height);
+                // Log solo en modo debug para no saturar la consola
+                #ifdef _DEBUG
+                std::cout << "Viewport redimensionado automáticamente a: " << width << "x" << height << std::endl;
+                #endif
             }
         }
         return 0;

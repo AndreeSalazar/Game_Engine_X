@@ -16,6 +16,8 @@ namespace DirectX12Editor
     {
         private IntPtr hwndHost;
         private Process? directXProcess;
+        private int lastWidth = 0;
+        private int lastHeight = 0;
         private const int WS_CHILD = 0x40000000;
         private const int WS_VISIBLE = 0x10000000;
         private const int WS_CLIPCHILDREN = 0x02000000;
@@ -37,7 +39,7 @@ namespace DirectX12Editor
             IntPtr lpParam);
 
         [DllImport("kernel32.dll")]
-        private static extern IntPtr GetModuleHandle(string lpModuleName);
+        private static extern IntPtr GetModuleHandle(string? lpModuleName);
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool DestroyWindow(IntPtr hWnd);
@@ -65,12 +67,27 @@ namespace DirectX12Editor
             // Crear una ventana nativa que servirá como contenedor
             IntPtr hInstance = GetModuleHandle(null);
             
+            // Obtener el tamaño del contenedor padre
+            RECT parentRect;
+            int initialWidth = 800;
+            int initialHeight = 600;
+            
+            if (GetClientRect(hwndParent.Handle, out parentRect))
+            {
+                initialWidth = parentRect.right - parentRect.left;
+                initialHeight = parentRect.bottom - parentRect.top;
+                
+                // Asegurar tamaño mínimo válido
+                if (initialWidth <= 0) initialWidth = 800;
+                if (initialHeight <= 0) initialHeight = 600;
+            }
+            
             hwndHost = CreateWindowEx(
                 0,
                 "STATIC", // Clase estática simple
                 "",
                 WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
-                0, 0, 100, 100,
+                0, 0, initialWidth, initialHeight,
                 hwndParent.Handle,
                 IntPtr.Zero,
                 hInstance,
@@ -111,6 +128,22 @@ namespace DirectX12Editor
         protected override IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
             // Manejar mensajes de Windows si es necesario
+            // Manejar WM_SIZE para ajustar automáticamente el tamaño
+            const int WM_SIZE = 0x0005;
+            if (msg == WM_SIZE)
+            {
+                // Cuando el contenedor cambia de tamaño, actualizar el viewport de DirectX
+                RECT rect;
+                if (GetClientRect(hwnd, out rect))
+                {
+                    int width = rect.right - rect.left;
+                    int height = rect.bottom - rect.top;
+                    if (width > 0 && height > 0)
+                    {
+                        UpdateSize(width, height);
+                    }
+                }
+            }
             return base.WndProc(hwnd, msg, wParam, lParam, ref handled);
         }
 
@@ -250,9 +283,18 @@ namespace DirectX12Editor
                         SetWindowPos(directXHwnd, IntPtr.Zero, 0, 0, width, height,
                             SWP_NOZORDER | SWP_NOACTIVATE);
                         
+                        // Esperar un momento para que la ventana se ajuste completamente
+                        System.Threading.Thread.Sleep(50);
+                        
                         // Enviar mensaje WM_SIZE para que DirectX inicialice con el tamaño correcto
+                        // Esto activará el sistema de escalado automático
                         IntPtr wParam = new IntPtr(SIZE_RESTORED);
                         IntPtr lParam = new IntPtr((height << 16) | (width & 0xFFFF));
+                        PostMessage(directXHwnd, WM_SIZE, wParam, lParam);
+                        
+                        // Enviar un segundo mensaje después de un pequeño delay para asegurar
+                        // que el sistema de escalado automático se active correctamente
+                        System.Threading.Thread.Sleep(100);
                         PostMessage(directXHwnd, WM_SIZE, wParam, lParam);
                     }
                 }
@@ -290,23 +332,50 @@ namespace DirectX12Editor
 
         public void UpdateSize(int width, int height)
         {
-            if (hwndHost != IntPtr.Zero && width > 0 && height > 0)
+            // Asegurar tamaño mínimo válido
+            int finalWidth = Math.Max(320, width);
+            int finalHeight = Math.Max(240, height);
+
+            // Evitar actualizaciones innecesarias si el tamaño no cambió significativamente
+            // (permitir pequeñas diferencias de 2 píxeles para evitar actualizaciones constantes)
+            const int threshold = 2;
+            if (Math.Abs(finalWidth - lastWidth) <= threshold && Math.Abs(finalHeight - lastHeight) <= threshold)
             {
-                // Actualizar tamaño del host
-                SetWindowPos(hwndHost, IntPtr.Zero, 0, 0, width, height,
+                return;
+            }
+
+            if (hwndHost != IntPtr.Zero && finalWidth > 0 && finalHeight > 0)
+            {
+                lastWidth = finalWidth;
+                lastHeight = finalHeight;
+
+                // Actualizar tamaño del host para ocupar TODO el espacio disponible
+                SetWindowPos(hwndHost, IntPtr.Zero, 0, 0, finalWidth, finalHeight,
                     SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOMOVE);
+
+                // Esperar un momento para que SetWindowPos se complete
+                System.Threading.Thread.Sleep(10);
 
                 // También actualizar la ventana de DirectX si existe
                 IntPtr directXHwnd = FindWindow("DirectX12WindowClass", "DirectX 12 - RTX 3060 12GB");
                 if (directXHwnd != IntPtr.Zero)
                 {
-                    // Actualizar tamaño de la ventana
-                    SetWindowPos(directXHwnd, IntPtr.Zero, 0, 0, width, height,
+                    // Actualizar tamaño de la ventana para ocupar TODO el espacio disponible
+                    SetWindowPos(directXHwnd, IntPtr.Zero, 0, 0, finalWidth, finalHeight,
                         SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOMOVE);
                     
+                    // Esperar un momento para que SetWindowPos se complete
+                    System.Threading.Thread.Sleep(10);
+                    
                     // Enviar mensaje WM_SIZE para que DirectX actualice el viewport
+                    // Esto activará el sistema de escalado automático en el proceso C++
                     IntPtr wParam = new IntPtr(SIZE_RESTORED);
-                    IntPtr lParam = new IntPtr((height << 16) | (width & 0xFFFF));
+                    IntPtr lParam = new IntPtr((finalHeight << 16) | (finalWidth & 0xFFFF));
+                    PostMessage(directXHwnd, WM_SIZE, wParam, lParam);
+                    
+                    // Enviar un segundo mensaje después de un pequeño delay para asegurar
+                    // que el sistema de escalado automático se active correctamente
+                    System.Threading.Thread.Sleep(50);
                     PostMessage(directXHwnd, WM_SIZE, wParam, lParam);
                 }
             }
