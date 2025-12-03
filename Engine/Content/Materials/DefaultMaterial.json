@@ -1,0 +1,44 @@
+{
+  "name": "DefaultMaterial",
+  "shader": {
+    "vertexShader": "Rendering/Shaders/BasicVS.hlsl",
+    "pixelShader": "Rendering/Shaders/BasicPS.hlsl"
+  },
+  "parameters": {
+    "BaseColor": {
+      "type": "vector3",
+      "value": [1.0, 1.0, 1.0],
+      "displayName": "Base Color"
+    },
+    "Metallic": {
+      "type": "scalar",
+      "value": 0.0,
+      "displayName": "Metallic",
+      "min": 0.0,
+      "max": 1.0
+    },
+    "Roughness": {
+      "type": "scalar",
+      "value": 0.5,
+      "displayName": "Roughness",
+      "min": 0.0,
+      "max": 1.0
+    },
+    "Emissive": {
+      "type": "vector3",
+      "value": [0.0, 0.0, 0.0],
+      "displayName": "Emissive Color"
+    }
+  },
+  "textures": {
+    "BaseColorTexture": {
+      "path": "",
+      "enabled": false
+    },
+    "NormalTexture": {
+      "path": "",
+      "enabled": false
+    }
+  }
+}
+

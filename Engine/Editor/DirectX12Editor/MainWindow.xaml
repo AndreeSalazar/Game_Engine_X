@@ -1,0 +1,275 @@
+<Window x:Class="DirectX12Editor.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="DirectX 12 Editor - RTX 3060 12GB" 
+        Height="800" Width="1400"
+        Background="#FF1E1E1E"
+        WindowStartupLocation="CenterScreen">
+    
+    <Window.Resources>
+        <!-- Estilos estilo Unreal Engine 5 -->
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#FFE0E0E0"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        
+        <Style TargetType="Slider">
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="Foreground" Value="#FF0078D4"/>
+        </Style>
+        
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#FF2D2D30"/>
+            <Setter Property="Foreground" Value="#FFE0E0E0"/>
+            <Setter Property="BorderBrush" Value="#FF3F3F46"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="5"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#FF0078D4"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="3" 
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FF005A9E"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        
+        <Style TargetType="GroupBox">
+            <Setter Property="Foreground" Value="#FFE0E0E0"/>
+            <Setter Property="BorderBrush" Value="#FF3F3F46"/>
+            <Setter Property="Background" Value="#FF252526"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="Margin" Value="5"/>
+        </Style>
+        
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#FFE0E0E0"/>
+        </Style>
+    </Window.Resources>
+    
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="300"/>
+        </Grid.ColumnDefinitions>
+        
+        <!-- Panel Izquierdo: Details Panel (Estilo UE5) -->
+        <GroupBox Grid.Column="0" Header="Details Panel" Margin="5">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <!-- Transformación -->
+                    <GroupBox Header="Transform" Margin="0,5">
+                        <StackPanel>
+                            <TextBlock Text="Rotation Speed:" Margin="0,5"/>
+                            <Slider x:Name="RotationSpeedSlider" 
+                                    Minimum="0" Maximum="0.1" 
+                                    Value="0.015" 
+                                    ValueChanged="RotationSpeedSlider_ValueChanged"
+                                    TickFrequency="0.001"/>
+                            <TextBox x:Name="RotationSpeedTextBox" 
+                                     Text="{Binding ElementName=RotationSpeedSlider, Path=Value, StringFormat=F3}"
+                                     TextChanged="RotationSpeedTextBox_TextChanged"
+                                     Margin="0,5"/>
+                            
+                            <TextBlock Text="Scale:" Margin="0,10,0,5"/>
+                            <Slider x:Name="ScaleSlider" 
+                                    Minimum="0.1" Maximum="2.0" 
+                                    Value="0.6"
+                                    ValueChanged="ScaleSlider_ValueChanged"
+                                    TickFrequency="0.1"/>
+                            <TextBox x:Name="ScaleTextBox" 
+                                     Text="{Binding ElementName=ScaleSlider, Path=Value, StringFormat=F2}"
+                                     TextChanged="ScaleTextBox_TextChanged"
+                                     Margin="0,5"/>
+                            
+                            <TextBlock Text="Rotation X Multiplier:" Margin="0,10,0,5"/>
+                            <Slider x:Name="RotationXMultiplierSlider" 
+                                    Minimum="0" Maximum="2.0" 
+                                    Value="0.7"
+                                    ValueChanged="RotationXMultiplierSlider_ValueChanged"
+                                    TickFrequency="0.1"/>
+                            <TextBox x:Name="RotationXMultiplierTextBox" 
+                                     Text="{Binding ElementName=RotationXMultiplierSlider, Path=Value, StringFormat=F2}"
+                                     TextChanged="RotationXMultiplierTextBox_TextChanged"
+                                     Margin="0,5"/>
+                        </StackPanel>
+                    </GroupBox>
+                    
+                    <!-- Cámara -->
+                    <GroupBox Header="Camera" Margin="0,5">
+                        <StackPanel>
+                            <TextBlock Text="Position X:" Margin="0,5"/>
+                            <TextBox x:Name="CameraXTextBox" Text="0.0" TextChanged="CameraXTextBox_TextChanged"/>
+                            
+                            <TextBlock Text="Position Y:" Margin="0,5,0,0"/>
+                            <TextBox x:Name="CameraYTextBox" Text="1.0" TextChanged="CameraYTextBox_TextChanged"/>
+                            
+                            <TextBlock Text="Position Z:" Margin="0,5,0,0"/>
+                            <TextBox x:Name="CameraZTextBox" Text="-4.0" TextChanged="CameraZTextBox_TextChanged"/>
+                            
+                            <TextBlock Text="FOV (radians):" Margin="0,10,0,5"/>
+                            <Slider x:Name="FOVSlider" 
+                                    Minimum="0.1" Maximum="2.0" 
+                                    Value="0.785398"
+                                    ValueChanged="FOVSlider_ValueChanged"
+                                    TickFrequency="0.1"/>
+                            <TextBox x:Name="FOVTextBox" 
+                                     Text="{Binding ElementName=FOVSlider, Path=Value, StringFormat=F6}"
+                                     TextChanged="FOVTextBox_TextChanged"
+                                     Margin="0,5"/>
+                        </StackPanel>
+                    </GroupBox>
+                    
+                    <!-- Controles -->
+                    <GroupBox Header="Controls" Margin="0,5">
+                        <StackPanel>
+                            <CheckBox x:Name="AutoRotateCheckBox" 
+                                      Content="Auto Rotate" 
+                                      IsChecked="True"
+                                      Checked="AutoRotateCheckBox_Changed"
+                                      Unchecked="AutoRotateCheckBox_Changed"
+                                      Margin="0,5"/>
+                            
+                            <Button Content="Reset to Default" 
+                                    Click="ResetButton_Click"
+                                    Margin="0,10,0,5"/>
+                            
+                            <Button Content="Save Config" 
+                                    Click="SaveConfigButton_Click"
+                                    Margin="0,5"/>
+                            
+                            <Button Content="Load Config" 
+                                    Click="LoadConfigButton_Click"
+                                    Margin="0,5"/>
+                            
+                            <Separator Margin="0,10" Background="#FF3A3A3A"/>
+                            
+                            <!-- Botón para abrir Material Editor -->
+                            <Button Content="🎨 Open Material Editor" 
+                                    Click="OpenMaterialEditor_Click"
+                                    Background="#FF00A86B"
+                                    Margin="0,5"
+                                    FontWeight="Bold"
+                                    Padding="15,10"/>
+                        </StackPanel>
+                    </GroupBox>
+                </StackPanel>
+            </ScrollViewer>
+        </GroupBox>
+        
+        <!-- Panel Central: Viewport Info -->
+        <GroupBox Grid.Column="1" Header="DirectX 12 Viewport" Margin="5">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                
+                <!-- Área del viewport de DirectX 12 -->
+                <Grid Grid.Row="0" Background="#FF0F0F0F">
+                    <!-- Overlay con información cuando no hay viewport -->
+                    <StackPanel x:Name="ViewportOverlay" 
+                                VerticalAlignment="Center" 
+                                HorizontalAlignment="Center"
+                                Visibility="Visible">
+                        <TextBlock Text="DirectX 12 Viewport" 
+                                   FontSize="24" 
+                                   Foreground="#FF0078D4"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,20"/>
+                        <TextBlock Text="Iniciando DirectX12Test.exe..." 
+                                   FontSize="14"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,10"/>
+                        <TextBlock x:Name="StatusTextBlock" 
+                                   Text="Estado: Esperando configuración..." 
+                                   FontSize="12"
+                                   HorizontalAlignment="Center"
+                                   Foreground="#FF00FF00"/>
+                        <TextBlock x:Name="ConfigPathTextBlock" 
+                                   Text="" 
+                                   FontSize="10"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,20,0,0"
+                                   Foreground="#FF888888"/>
+                    </StackPanel>
+                    
+                    <!-- Host para incrustar DirectX -->
+                    <ContentControl x:Name="DirectXHostContainer" 
+                                    Visibility="Collapsed">
+                        <!-- El DirectXHost se agregará desde código -->
+                    </ContentControl>
+                </Grid>
+                
+                <!-- Información de rendimiento -->
+                <GroupBox Grid.Row="1" Header="Performance Info" Margin="0,5,0,0">
+                    <StackPanel>
+                        <TextBlock x:Name="LastUpdateTextBlock" Text="Última actualización: Nunca"/>
+                        <TextBlock x:Name="ConfigFileTextBlock" Text="Archivo: config.json"/>
+                    </StackPanel>
+                </GroupBox>
+            </Grid>
+        </GroupBox>
+        
+        <!-- Panel Derecho: Stats y Info -->
+        <GroupBox Grid.Column="2" Header="Statistics" Margin="5">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <GroupBox Header="Current Values" Margin="0,5">
+                        <StackPanel>
+                            <TextBlock Text="Rotation Speed:" Margin="0,5"/>
+                            <TextBlock x:Name="CurrentRotationSpeedText" Text="0.015" FontWeight="Bold"/>
+                            
+                            <TextBlock Text="Scale:" Margin="0,10,0,5"/>
+                            <TextBlock x:Name="CurrentScaleText" Text="0.6" FontWeight="Bold"/>
+                            
+                            <TextBlock Text="Camera Position:" Margin="0,10,0,5"/>
+                            <TextBlock x:Name="CurrentCameraText" Text="(0, 1, -4)" FontWeight="Bold"/>
+                            
+                            <TextBlock Text="FOV:" Margin="0,10,0,5"/>
+                            <TextBlock x:Name="CurrentFOVText" Text="0.785" FontWeight="Bold"/>
+                        </StackPanel>
+                    </GroupBox>
+                    
+                    <GroupBox Header="Instructions" Margin="0,5">
+                        <TextBlock TextWrapping="Wrap" Margin="5">
+                            <Run Text="1. Ejecuta DirectX12Test.exe"/>
+                            <LineBreak/>
+                            <Run Text="2. Ajusta los controles en tiempo real"/>
+                            <LineBreak/>
+                            <Run Text="3. Los cambios se aplican automáticamente"/>
+                            <LineBreak/>
+                            <Run Text="4. Guarda la configuración para reutilizarla"/>
+                        </TextBlock>
+                    </GroupBox>
+                </StackPanel>
+            </ScrollViewer>
+        </GroupBox>
+    </Grid>
+</Window>
+
